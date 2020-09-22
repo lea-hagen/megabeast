@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import argparse
 
 import beast.observationmodel.noisemodel.generic_noisemodel as noisemodel
 from beast.tools import beast_settings
