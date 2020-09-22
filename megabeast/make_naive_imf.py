@@ -2,15 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import beast.observationmodel.noisemodel.generic_noisemodel as noisemodel
-from beast.physicsmodel.grid import FileSEDGrid
+from beast.tools import beast_settings
 
 from astropy.table import Table
 
 
 def make_naive_imf(
-    stats_file,
-    noise_file_list,
-    reorder_tags=None,
+    beast_settings_info,
+    use_sd=True,
     compl_filter="F475W",
     max_age_myr=100,
     n_hist_bins=30,
@@ -21,16 +20,12 @@ def make_naive_imf(
 
     Parameters
     ----------
-    stats_file : string
-        BEAST file with the best-fit statistics
+    beast_settings_info : string or beast.tools.beast_settings.beast_settings instance
+        if string: file name with beast settings
+        if class: beast.tools.beast_settings.beast_settings instance
 
-    noise_file_list : string or list of strings
-        corresponding noise models
-
-    reorder_tags : list of strings (default=None)
-        if noise_file_list is multiple files, such that the stats file is a
-        merged file, use this to denote the values of 'reorder_tag' that belong
-        to each noise file
+    use_sd : boolean (default=True)
+        If True, the BEAST runs were split into source density or background bins
 
     compl_filter : string (default='F475W')
         filter name to use for completeness
@@ -48,7 +43,67 @@ def make_naive_imf(
 
     """
 
+    # =======================
+    # set up file names
+    # =======================
+
+    # process beast settings info
+    if isinstance(beast_settings_info, str):
+        settings = beast_settings.beast_settings(beast_settings_info)
+    elif isinstance(beast_settings_info, beast_settings.beast_settings):
+        settings = beast_settings_info
+    else:
+        raise TypeError(
+            "beast_settings_info must be string or beast.tools.beast_settings.beast_settings instance"
+        )
+
+    # make list of file names
+    file_dict = create_filenames.create_filenames(
+        settings, use_sd=use_sd, nsubs=settings.n_subgrid,
+    )
+
+    # no subgrids
+    if settings.n_subgrid == 1:
+
+        stats_file_list = file_dict["stats_files"]
+        noise_file_dict = {
+            stats_file_list[i]: file_dict["noise_trim_files"][i]
+            for i in range(len(stats_file_list))
+        }
+        file_ref_label = {stats_file_list[i]: None for i in range(len(stats_file_list))}
+
+    # with subgrids
+    if settings.n_subgrid > 1:
+
+        # start by converting names to merged (across subgrids) version
+        stats_file_list_unmerged = file_dict["stats_files"]
+        merged_stats = []
+        for filename in stats_file_list_unmerged:
+            gs_start = filename.rfind("_gridsub")
+            st_start = filename.rfind("_stats.fits")
+            merged_stats.append(filename[:gs_start] + filename[st_start:])
+
+        # now get their corresponding noise files and gridsub info
+        stats_file_list = list(set(merged_stats))
+        noise_file_dict = {}
+        file_ref_label = "best_gridsub_tag"
+        file_ref_info = {}
+        for filename in stats_file_list:
+            noise_file_dict[filename] = [
+                nf
+                for i, nf in enumerate(file_dict["noise_trim_files"])
+                if filename == merged_stats[i]
+            ]
+            file_ref_info[filename] = [
+                nf
+                for i, nf in enumerate(file_dict["gridsub_info"])
+                if filename == merged_stats[i]
+            ]
+
+    # =======================
     # set up histograms to hold masses
+    # =======================
+
     hist_bins = np.geomspace(0.2, 100, num=n_hist_bins)
     log_hist_bins = np.log10(hist_bins)
     bin_centers = 10 ** (log_hist_bins[:-1] + np.diff(log_hist_bins) / 2)
@@ -59,46 +114,52 @@ def make_naive_imf(
     # also record total mass
     tot_mass = 0.0
 
-    # read in the stats file
-    stats_data = Table.read(str(stats_file))
+    for stats_file in stats_file_list:
 
-    # grab info from each catalog + noise file
-    for i, noise_file in enumerate(np.atleast_1d(noise_file_list)):
+        # read in the stats file
+        stats_data = Table.read(str(stats_file))
 
-        # read in the noise model - includes bias, unc, and completeness
-        noisegrid = noisemodel.get_noisemodelcat(noise_file)
-        #noise_err = noisemodel_vals["error"]
-        #noise_bias = noisemodel_vals["bias"]
-        noise_compl = noisemodel_vals["completeness"]
+        # grab info from corresponding noise file(s)
+        for i, noise_file in enumerate(np.atleast_1d(noise_file_dict[stats_file])):
 
-        # initialize array to hold whether to keep each row
-        keep_row = np.ones(len(stats_data), dtype=bool)
+            # read in the noise model - includes bias, unc, and completeness
+            noisemodel_vals = noisemodel.get_noisemodelcat(noise_file)
+            noise_compl = noisemodel_vals["completeness"]
 
-        # if needed, get the subset for this noise model
-        if reorder_tags is not None:
-            keep_row[np.where(stats_data["reorder_tag"] != reorder_tags[i])] = False
+            # initialize array to hold whether to keep each row
+            keep_row = np.ones(len(stats_data), dtype=bool)
 
-        # only do sources with the proper age
-        keep_row[
-            np.where(stats_data["logA_Best"] > np.log10(max_age_myr * 10 ** 6))
-        ] = False
+            # if needed, get the subset for this noise model
+            if file_ref_label is not None:
+                keep_row[
+                    np.where(stats_data[file_ref_label] != file_ref_info[stats_file][i])
+                ] = False
 
-        # if set, do a chi2 cut
-        if chi2_cut is not None:
-            keep_row[np.where(stats_data["chi2min"] > chi2_cut)] = False
+            # only do sources with the proper age
+            keep_row[
+                np.where(stats_data["logA_Best"] > np.log10(max_age_myr * 10 ** 6))
+            ] = False
 
-        # grab the grid indices for the best fit
-        best_ind = stats_data["specgrid_indx"][keep_row]
-        # the index lets us get the completeness
-        best_comp = model_compl[best_ind][:, 3]
-        # and grab the best mass
-        best_mass = stats_data["M_ini_Best"][keep_row]
+            # if set, do a chi2 cut
+            if chi2_cut is not None:
+                keep_row[np.where(stats_data["chi2min"] > chi2_cut)] = False
 
-        # put masses in the bins
-        hist_orig += np.histogram(best_mass, bins=hist_bins)[0]
-        hist_corr += np.histogram(best_mass / best_comp, bins=hist_bins)[0]
-        # save total mass
-        tot_mass += np.sum(best_mass)
+            # grab the grid indices for the best fit
+            best_ind = stats_data["Pmax_indx"][keep_row]
+            # the index lets us get the completeness
+            best_comp = model_compl[best_ind][:, 3]
+            # and grab the best mass
+            best_mass = stats_data["M_ini_Best"][keep_row]
+
+            # put masses in the bins
+            hist_orig += np.histogram(best_mass, bins=hist_bins)[0]
+            hist_corr += np.histogram(best_mass / best_comp, bins=hist_bins)[0]
+            # save total mass
+            tot_mass += np.sum(best_mass)
+
+    # =======================
+    # do the plotting
+    # =======================
 
     # make a plot
     fig = plt.figure(figsize=(5, 4))
@@ -149,10 +210,6 @@ def make_naive_imf(
     plt.tight_layout()
 
     # save figure
-    fig.savefig(stats_file.replace(".fits", "_imf.pdf"))
+    fig.savefig("{0}/{0}_imf.pdf".format(settings.project))
 
     plt.close("all")
-
-    import pdb
-
-    pdb.set_trace()
