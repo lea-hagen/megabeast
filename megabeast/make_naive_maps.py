@@ -6,6 +6,7 @@ import h5py
 import itertools as it
 from astropy.io import fits
 from astropy.table import Table, vstack
+from astropy import units as u
 
 from beast.tools.create_background_density_map import (
     calc_nx_ny_from_pixsize,
@@ -44,7 +45,7 @@ def make_maps(stats_filename, pix_size=10.0):
     # make RA/Dec grid
     ra = cat["RA"]
     dec = cat["DEC"]
-    pixsize_degrees = pix_size / 3600
+    pixsize_degrees = (pix_size / 3600) * u.degree
     n_x, n_y, ra_delt, dec_delt = calc_nx_ny_from_pixsize(cat, pixsize_degrees)
     # the ra spacing needs to be larger, as 1 degree of RA ==
     # cos(DEC) degrees on the great circle
