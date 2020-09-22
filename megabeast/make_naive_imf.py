@@ -114,6 +114,9 @@ def make_naive_imf(
     # also record total mass
     tot_mass = 0.0
 
+    # get index for completeness
+    compl_ind = settings.basefilters.index(compl_filter)
+
     for stats_file in stats_file_list:
 
         # read in the stats file
@@ -147,7 +150,7 @@ def make_naive_imf(
             # grab the grid indices for the best fit
             best_ind = stats_data["Pmax_indx"][keep_row]
             # the index lets us get the completeness
-            best_comp = model_compl[best_ind][:, 3]
+            best_comp = model_compl[best_ind][:, compl_ind]
             # and grab the best mass
             best_mass = stats_data["M_ini_Best"][keep_row]
 
@@ -213,3 +216,57 @@ def make_naive_imf(
     fig.savefig("{0}/{0}_imf.pdf".format(settings.project))
 
     plt.close("all")
+
+
+if __name__ == "__main__":  # pragma: no cover
+    # commandline parser
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "beast_settings_file", type=str, help="file name with beast settings",
+    )
+    parser.add_argument(
+        "--use_sd",
+        type=int,
+        default=1,
+        help="set to True (1) if the fitting used source density bins",
+    )
+
+    parser.add_argument(
+        "--compl_filter",
+        type=str,
+        default="F475W",
+        help="filter name to use for completeness",
+    )
+
+    parser.add_argument(
+        "--max_age_myr",
+        type=float,
+        default=100,
+        help="only stars with ages less than this will be used to construct the IMF",
+    )
+
+    parser.add_argument(
+        "--n_hist_bins",
+        type=float,
+        default=30,
+        help="number of bins to use for the mass histogram (log spaced between 0.2 and 100 Msun)",
+    )
+
+    parser.add_argument(
+        "--chi2_cut",
+        type=float,
+        default=None,
+        help="any sources with chi2 larger than this will be removed",
+    )
+
+    args = parser.parse_args()
+
+    make_naive_imf(
+        args.beast_settings_file,
+        use_sd=bool(args.use_sd),
+        compl_filter=args.compl_filter,
+        max_age_myr=args.max_age_myr,
+        n_hist_bins=args.n_hist_bins,
+        chi2_cut=args.chi2_cut,
+    )
