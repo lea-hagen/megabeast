@@ -4,6 +4,7 @@ import argparse
 
 import beast.observationmodel.noisemodel.generic_noisemodel as noisemodel
 from beast.tools import beast_settings
+from beast.tools.run import create_filenames
 
 from astropy.table import Table
 
