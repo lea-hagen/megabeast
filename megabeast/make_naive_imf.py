@@ -162,7 +162,7 @@ def make_naive_imf(
                 # grab the grid indices for the best fit
                 best_ind = stats_data["Pmax_indx"][keep_row]
                 # the index lets us get the completeness
-                imf_data["compl_data"] += model_compl[best_ind][:, compl_ind].tolist()
+                imf_data["compl_data"] += noise_compl[best_ind][:, compl_ind].tolist()
                 # and grab the best mass
                 imf_data["mass_data"] += stats_data["M_ini_Best"][keep_row].tolist()
 
