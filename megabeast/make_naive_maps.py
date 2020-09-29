@@ -73,7 +73,7 @@ def make_maps(stats_filename, pix_size=10.0):
     # loop through the pixels and generate the summary stats
     for i in range(n_x):
         for j in range(n_y):
-            indxs = indices_for_pixel(pix_x, pix_y, x, y)
+            indxs = indices_for_pixel(pix_x, pix_y, i, j)
             if len(indxs) > 0:
                 summary_stats[j, i, n_sum] = len(indxs)
                 print(i, j, len(indxs))
