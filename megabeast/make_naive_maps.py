@@ -16,7 +16,7 @@ from beast.tools.create_background_density_map import (
 )
 
 
-def make_maps(stats_filename, pix_size=10.0):
+def make_maps(stats_filename, pix_size=10.0, chi2_cut=None):
     """
     Make the naive maps
 
@@ -28,6 +28,8 @@ def make_maps(stats_filename, pix_size=10.0):
     pix_size : float (default=10)
        size of pixels/regions in arcsec
 
+    chi2_cut : float (default=None)
+        any sources with chi2 larger than this will be removed
     """
 
     # type of statistic (make a commandline parameter later)
@@ -42,6 +44,10 @@ def make_maps(stats_filename, pix_size=10.0):
         for fname in stats_filename[1:]:
             tcat = Table.read(fname)
             cat = vstack([cat, tcat])
+
+    # if set, do a chi2 cut
+    if chi2_cut is not None:
+        cat.remove_rows(np.where(cat["chi2min"] > chi2_cut))
 
     # make RA/Dec grid
     ra = cat["RA"]
@@ -126,7 +132,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--pix_size", default=10.0, type=float, help="pixel scale [arcsec]"
     )
+    parser.add_argument(
+        "--chi2_cut",
+        type=float,
+        default=None,
+        help="any sources with chi2 larger than this will be removed",
+    )
     args = parser.parse_args()
 
     # call the function
-    make_maps(args.stats_filename, pix_size=args.pix_size)
+    make_maps(args.stats_filename, pix_size=args.pix_size, chi2_cut=args.chi2_cut)
