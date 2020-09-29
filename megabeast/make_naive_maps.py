@@ -12,6 +12,7 @@ from beast.tools.create_background_density_map import (
     calc_nx_ny_from_pixsize,
     make_wcs_for_map,
     get_pix_coords,
+    indices_for_pixel,
 )
 
 
@@ -57,33 +58,27 @@ def make_maps(stats_filename, pix_size=10.0):
 
     # get the pixel coordinates for each source
     pix_x, pix_y = get_pix_coords(cat, w)
-    # import pdb; pdb.set_trace()
-
-    # for ease of checking the bin, set x/y coords to integers
-    x = np.floor(pix_x)
-    y = np.floor(pix_y)
 
     # setup arrary to store summary stats per pixel
     n_sum = 2
     sum_stats = ["Av", "Rv", "f_A"]
     n_sum = len(sum_stats)
-    summary_stats = np.zeros((n_y + 1, n_x + 1, n_sum + 1), dtype=float)
-    summary_sigmas = np.zeros((n_y + 1, n_x + 1, n_sum), dtype=float)
+    summary_stats = np.zeros((n_y, n_x, n_sum + 1), dtype=float)
+    summary_sigmas = np.zeros((n_y, n_x, n_sum), dtype=float)
     values_foreach_pixel = {
-        cur_stat: {(i, j): [] for i in range(n_x + 1) for j in range(n_y + 1)}
+        cur_stat: {(i, j): [] for i in range(n_x) for j in range(n_y)}
         for cur_stat in sum_stats
     }
 
     # loop through the pixels and generate the summary stats
-    for i in range(n_x + 1):
-        for j in range(n_y + 1):
-            (tindxs,) = np.where((x == i) & (y == j))
-            # tindxs, = np.where((x == i) & (y == j) & (cat['chi2min'] < 10.))
-            if len(tindxs) > 0:
-                summary_stats[j, i, n_sum] = len(tindxs)
-                print(i, j, len(tindxs))
+    for i in range(n_x):
+        for j in range(n_y):
+            indxs = indices_for_pixel(pix_x, pix_y, x, y)
+            if len(indxs) > 0:
+                summary_stats[j, i, n_sum] = len(indxs)
+                print(i, j, len(indxs))
                 for k, cur_stat in enumerate(sum_stats):
-                    values = cat[cur_stat + "_" + stat_type][tindxs]
+                    values = cat[cur_stat + "_" + stat_type][indxs]
                     values_foreach_pixel[cur_stat][i, j] = values
                     summary_stats[j, i, k] = np.average(values)
                     summary_sigmas[j, i, k] = np.std(values, ddof=1) / math.sqrt(
