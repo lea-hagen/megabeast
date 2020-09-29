@@ -64,7 +64,7 @@ def make_naive_imf(
         )
 
     # asdf file that has (or will have) the mass/completeness data
-    imf_data_file = "{0}/{0}_imf_data.asdf"
+    imf_data_file = "{0}/{0}_imf_data.asdf".format(settings.project)
 
     # =======================
     # assemble data
@@ -215,7 +215,7 @@ def make_naive_imf(
         yerr=hist_orig_err,
         marker="o",
         mew=0,
-        color="black",
+        color="grey",
         markersize=5,
         linestyle="None",
         label="Observed IMF",
@@ -242,6 +242,7 @@ def make_naive_imf(
         markersize=0,
         linestyle=":",
         color="xkcd:azure",
+        alpha=0.75,
         label="S55 IMF",
     )
     plt.plot(
